@@ -17,11 +17,13 @@ public class FindSucMsg extends ProtoMessage {
     public final static short MSG_ID = 739;
 
     private final Host host;
+    private final BigInteger hasId;
     private final BigInteger id;
 
-    public FindSucMsg(Host host, BigInteger id) {
+    public FindSucMsg(Host host, BigInteger hasId, BigInteger id) {
         super(MSG_ID);
         this.host = host;
+        this.hasId = hasId;
         this.id = id;
     }
 
@@ -30,6 +32,10 @@ public class FindSucMsg extends ProtoMessage {
     }
 
     public BigInteger getHashId() {
+        return hasId;
+    }
+    
+    public BigInteger getTargetId() {
         return id;
     }
 
@@ -44,17 +50,22 @@ public class FindSucMsg extends ProtoMessage {
         @Override
         public void serialize(FindSucMsg msg, ByteBuf out) throws IOException {
             Host.serializer.serialize(msg.getHost(), out);
-            byte[] byteId = msg.getHashId().toByteArray();
+            byte[] byteHashId = msg.getHashId().toByteArray();
+            byte[] byteId = msg.getTargetId().toByteArray();
+            out.writeBytes(byteHashId);
             out.writeBytes(byteId);
         }
 
         @Override
         public FindSucMsg deserialize(ByteBuf in) throws IOException {
             Host host = Host.serializer.deserialize(in);
+            byte[] byteHashId = new byte[20];
             byte[] byteId = new byte[20];
+            in.readBytes(byteHashId);
             in.readBytes(byteId);
+            BigInteger hashId = new BigInteger(byteHashId);
             BigInteger id = new BigInteger(byteId);
-            return new FindSucMsg(host, id);
+            return new FindSucMsg(host, hashId, id);
         }
     };
 }

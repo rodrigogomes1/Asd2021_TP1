@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
@@ -40,6 +41,8 @@ public class ChordProtocol2 extends GenericProtocol {
     private final int stabilizeTime; //param: timeout for stabilize
     private final int checkPredecessorTime; //param: timeout for checkPredecessor
     private final int channelId;
+    
+    private Hashtable<BigInteger, Host> fingerTable;
 
     private Host sucHost;
     private BigInteger sucId;
@@ -109,7 +112,7 @@ public class ChordProtocol2 extends GenericProtocol {
             String[] hostElems = contact.split(":");
             Host contactHost = new Host(InetAddress.getByName(hostElems[0]), Short.parseShort(hostElems[1]));
             openConnection(contactHost, channelId);
-            sendMessage(channelId, new FindSucMsg(selfHost, selfId), contactHost);
+            sendMessage(channelId, new FindSucMsg(selfHost, selfId, selfId), contactHost);
 
         }else{ //Create new chord ring
             System.out.println("Create new chord ring");
@@ -125,14 +128,21 @@ public class ChordProtocol2 extends GenericProtocol {
 
     private void uponFindSucMsg(FindSucMsg msg, Host from, short sourceProto, int channelId){
         System.out.println("Received FindSucMsg {} from {}");
-        BigInteger receivedId= msg.getHashId();
-
-        if(sucId.compareTo(selfId)==0 || between(selfId, msg.getHashId(), sucId)) {
+        BigInteger receivedId= msg.getTargetId();
+        // sera condicao para comparar selfId com receivedID, e será necessario como um id deve ser unico pelo o hash
+        if(sucId.compareTo(selfId)==0 || between(selfId, receivedId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
-            sendMessage(this.channelId, new FindSucMsgResponse(sucHost ,sucId), msg.getHost());
+            sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId), msg.getHost());
         }else {
-            openConnection(sucHost, this.channelId);
-            sendMessage(this.channelId, msg, sucHost);
+            BigInteger max = null;
+            for(BigInteger tableEntry : fingerTable.keySet()) {
+            	if(tableEntry.compareTo(receivedId) <= 0) {
+                	max=tableEntry;
+                }else {
+                	break;
+                }
+            }
+            sendMessage(this.channelId, msg, fingerTable.get(max));
         }
     }
 
