@@ -4,6 +4,8 @@ import protocols.dht.ChordTimers.StabilizeTimer;
 import channel.notifications.ChannelCreated;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import ChordTimers.CheckPredecessorTimer;
 import protocols.dht.messages.FindSucMsg;
 import protocols.dht.messages.FindSucMsgResponse;
 import protocols.dht.messages.StabilizeMsg;
@@ -36,12 +38,14 @@ public class ChordProtocol2 extends GenericProtocol {
     private final Host selfHost;
     private final BigInteger selfId;
     private final int stabilizeTime; //param: timeout for stabilize
+    private final int checkPredecessorTime; //param: timeout for checkPredecessor
     private final int channelId;
 
     private Host sucHost;
     private BigInteger sucId;
     private Host preHost;
     private BigInteger preId;
+    private final Set<Host> connections; //Peers I am connected to
 
     private boolean channelReady;
 
@@ -49,8 +53,10 @@ public class ChordProtocol2 extends GenericProtocol {
         super(PROTOCOL_NAME, PROTOCOL_ID);
         selfHost = self;
         selfId = HashGenerator.generateHash(self.toString());
+        this.connections = new HashSet<>();
 
         this.stabilizeTime = Integer.parseInt(props.getProperty("stabilize_Time", "2000")); //2 seconds
+        this.checkPredecessorTime = Integer.parseInt(props.getProperty("checkPredecessor_Time", "2500")); //2.5 seconds
 
         Properties channelProps = new Properties();
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, props.getProperty("address")); //The address to bind to
@@ -85,6 +91,7 @@ public class ChordProtocol2 extends GenericProtocol {
 
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(StabilizeTimer.TIMER_ID, this::uponStabilizeTimer);
+        registerTimerHandler(CheckPredecessorTimer.TIMER_ID, this::uponCheckPredecessorTimer);
 
         System.out.println("Constructor chord");
     }
@@ -112,6 +119,7 @@ public class ChordProtocol2 extends GenericProtocol {
 
         //Setup the timer used to do the stabilize method periodically (we registered its handler on the constructor)
         setupPeriodicTimer(new StabilizeTimer(), this.stabilizeTime, this.stabilizeTime);
+        setupPeriodicTimer(new CheckPredecessorTimer(), this.checkPredecessorTime, this.checkPredecessorTime);
         System.out.println("Constructor end");
     }
 
@@ -170,6 +178,15 @@ public class ChordProtocol2 extends GenericProtocol {
             sucHost = msg.getHost();
         }
     }
+    
+    private void uponCheckPredecessorTimer(CheckPredecessorTimer timer, long timerId) {
+    	System.out.println("Check predecessor timer");
+    	if(!connections.contains(preHost)){
+    		System.out.println("Predecessor " + preHost + " : " + preId + " failed");
+    		preHost = null;
+    		preId = null;
+    	}
+    }
 
     // Test if BigInteger is in the middle of other 2 "in a circle"
     // 10000 "<" 2 "<" 3 -> true
@@ -181,24 +198,39 @@ public class ChordProtocol2 extends GenericProtocol {
 
     }
 
+    //If a connection is successfully established, this event is triggered. In this protocol, we want to add the
+    //respective peer to the membership, and inform the Dissemination protocol via a notification.
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
-        System.out.println(String.format("Connection to %s is up", event.getNode()));
+        Host peer = event.getNode();
+        System.out.println(String.format("Connection to {} is up", peer));
+        connections.add(peer);
     }
 
+    //If an established connection is disconnected, remove the peer from the membership and inform the Dissemination
+    //protocol. Alternatively, we could do smarter things like retrying the connection X times.
     private void uponOutConnectionDown(OutConnectionDown event, int channelId) {
-        System.out.println(String.format("Connection to %s is down cause %s", event.getNode(), event.getCause()));
+        Host peer = event.getNode();
+        System.out.println(String.format("Connection to {} is down cause {}", peer, event.getCause()));
+        connections.remove(event.getNode());
     }
 
+    //If a connection fails to be established, this event is triggered. In this protocol, we simply remove from the
+    //pending set. Note that this event is only triggered while attempting a connection, not after connection.
+    //Thus the peer will be in the pending set, and not in the membership (unless something is very wrong with our code)
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channelId) {
-        System.out.println(String.format("Connection to %s failed cause: %s", event.getNode(), event.getCause()));
+    	System.out.println(String.format("Connection to {} failed cause: {}", event.getNode(), event.getCause()));
     }
 
+    //If someone established a connection to me, this event is triggered. In this protocol we do nothing with this event.
+    //If we want to add the peer to the membership, we will establish our own outgoing connection.
+    // (not the smartest protocol, but its simple)
     private void uponInConnectionUp(InConnectionUp event, int channelId) {
-        System.out.println(String.format("Connection from %s is up", event.getNode()));
+    	System.out.println(String.format("Connection from {} is up", event.getNode()));
     }
 
+    //A connection someone established to me is disconnected.
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
-        System.out.println(String.format("Connection from %s is down, cause: %s", event.getNode(), event.getCause()));
+    	System.out.println(String.format("Connection from {} is down, cause: {}", event.getNode(), event.getCause()));
     }
 
 
