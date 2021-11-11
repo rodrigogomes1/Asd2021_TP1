@@ -25,7 +25,7 @@ import pt.unl.fct.di.novasys.channel.tcp.events.ChannelMetrics;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 public class AutomatedApplication extends GenericProtocol {
-	private static final Logger logger = LogManager.getLogger(AutomatedApplication.class);
+	//private static final Logger logger = LogManager.getLogger(AutomatedApplication.class);
 
 	//Protocol information, to register in babel
 	public static final String PROTO_NAME = "AutomatedApplication";
@@ -115,7 +115,7 @@ public class AutomatedApplication extends GenericProtocol {
 	@Override
 	public void init(Properties props) {
 		//Generate Keys deterministically;
-		logger.info("Generating Keys");
+		//logger.info("Generating Keys");
 		for(int i = 1; i <= this.totalProcesses; i++) {
 			r = new Random((long) i);
 			for(int j = 0; j < numberContents; j++) {
@@ -130,17 +130,17 @@ public class AutomatedApplication extends GenericProtocol {
 		//reset Random
 		r = new Random((long) this.localIndex);
 		//Wait prepareTime seconds before starting
-		logger.info("Waiting...");
+		//logger.info("Waiting...");
 		setupTimer(new StartTimer(), prepareTime * 1000);
 	}
 
 	private void uponStartTimer(StartTimer startTimer, long timerId) {
-		logger.info("Starting");
+		//logger.info("Starting");
 		byte[] content = new byte[this.payloadSize];
 		new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 		StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 		sendRequest(request, storageProtoId);
-		logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+		//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 		this.storeRequests++;
 	}
 
@@ -148,7 +148,7 @@ public class AutomatedApplication extends GenericProtocol {
 		String name = this.otherKeys.get(r.nextInt(this.otherKeys.size()));
 		
 		RetrieveRequest request = new RetrieveRequest(name);
-		logger.info("{}: Sending Retrieve request for content with key: {} (request ID {})", self, request.getName(), request.getRequestUID());
+		//logger.info("{}: Sending Retrieve request for content with key: {} (request ID {})", self, request.getName(), request.getRequestUID());
 		//And send it to the storage protocol
 		sendRequest(request, storageProtoId);
 		this.retrieveRequests++;
@@ -157,7 +157,7 @@ public class AutomatedApplication extends GenericProtocol {
 	private void uponStoreOk(StoreOKReply reply, short sourceProto) {
 		this.storedKeys++;
 		this.storeRequestsCompleted++;
-		logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
+		//logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
 		if(this.storedKeys >= this.numberContents) {
 			//Start requests periodically
 			requestTimer = setupPeriodicTimer(new RequestTimer(), 0, requestInterval);
@@ -168,33 +168,33 @@ public class AutomatedApplication extends GenericProtocol {
 			new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 			StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 			sendRequest(request, storageProtoId);
-			logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+			//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 			this.storeRequests++;
 		}
 	}
 	
 	private void uponRetrieveOK(RetrieveOKReply reply, short sourceProto) {
-		logger.info("{}: Retieve successful for content with name: {} with size {} bytes (replyID {})", self, reply.getName(), reply.getContent().length, reply.getReplyUID());
+		//logger.info("{}: Retieve successful for content with name: {} with size {} bytes (replyID {})", self, reply.getName(), reply.getContent().length, reply.getReplyUID());
 		this.retrieveRequestsSuccessful++;
 	}
 	
 	private void uponRetrieveFailed(RetrieveFailedReply reply, short sourceProto) {
-		logger.info("{}: Retieve failed for content with name: {} bytes (replyID {})", self, reply.getName(), reply.getReplyUID());
+		//logger.info("{}: Retieve failed for content with name: {} bytes (replyID {})", self, reply.getName(), reply.getReplyUID());
 		this.retrieveRequestsFailed++;
 	}
 
 	private void uponStopTimer(StopTimer stopTimer, long timerId) {
-		logger.info("Stopping broadcasts");
+		//logger.info("Stopping broadcasts");
 		this.cancelTimer(requestTimer);
 		setupTimer(new ExitTimer(), cooldownTime * 1000);
 	}
 	private void uponExitTimer(ExitTimer exitTimer, long timerId) {
-		logger.info("Exiting...");
-		logger.info("{}: Executed {} store requests.", self, this.storeRequests);
-		logger.info("{}: Completed {} store requests.", self, this.storeRequestsCompleted);
-		logger.info("{}: Executed {} retrieve requests.", self, this.retrieveRequests);
-		logger.info("{}: Success on {} retrieve requests.", self, this.retrieveRequestsSuccessful);
-		logger.info("{}: Failed on {} retrieve requests.", self, this.retrieveRequestsFailed);
+		//logger.info("Exiting...");
+		//logger.info("{}: Executed {} store requests.", self, this.storeRequests);
+		//logger.info("{}: Completed {} store requests.", self, this.storeRequestsCompleted);
+		//logger.info("{}: Executed {} retrieve requests.", self, this.retrieveRequests);
+		//logger.info("{}: Success on {} retrieve requests.", self, this.retrieveRequestsSuccessful);
+		//logger.info("{}: Failed on {} retrieve requests.", self, this.retrieveRequestsFailed);
 		System.exit(0);
 	}
 	
@@ -220,6 +220,6 @@ public class AutomatedApplication extends GenericProtocol {
                 c.getPeer(), c.getSentAppMessages(), c.getSentAppBytes(), c.getReceivedAppMessages(),
                 c.getReceivedAppBytes())));
         sb.setLength(sb.length() - 1);
-        logger.info(sb);
+		//logger.info(sb);
     }
 }

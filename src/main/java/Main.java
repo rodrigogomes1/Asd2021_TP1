@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 
 import protocols.apps.AutomatedApplication;
 import protocols.dht.ChordProtocol;
+import protocols.dht.ChordProtocol2;
 import protocols.dht.TestProtocol;
 import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -22,7 +23,7 @@ public class Main {
     }
 
     //Creates the logger object
-    private static final Logger logger = LogManager.getLogger(Main.class);
+    //private static final Logger logger = LogManager.getLogger(Main.class);
 
     //Default babel configuration file (can be overridden by the "-config" launch argument)
     private static final String DEFAULT_CONF = "babel_config.properties";
@@ -34,7 +35,7 @@ public class Main {
 
         //Loads properties from the configuration file, and merges them with properties passed in the launch arguments
         Properties props = Babel.loadConfig(args, DEFAULT_CONF);
-
+        //System.out.println("Aqui");
         //If you pass an interface name in the properties (either file or arguments), this wil get the IP of that interface
         //and create a property "address=ip" to be used later by the channels.
         InterfaceToIp.addInterfaceIp(props);
@@ -44,7 +45,7 @@ public class Main {
         Host myself =  new Host(InetAddress.getByName(props.getProperty("address")),
                 Integer.parseInt(props.getProperty("port")));
 
-        logger.info("Hello, I am {}", myself);
+        //logger.info("Hello, I am {}", myself);
 
         // Application
         AutomatedApplication app = new AutomatedApplication(myself, props, (short) 600 /**change this parameter to map the id of the Storage Protocol**/);
@@ -52,7 +53,7 @@ public class Main {
         StorageProtocol storage = new StorageProtocol(props,myself, (short) 700, (short) 300); /**You need to uncomment this line and define the protocol**/
         // DHT Protocol
         //DHTProtocol dht = new ...; /**You need to uncomment this line and define the protocol**/
-        ChordProtocol dht = new ChordProtocol(props, myself);
+        ChordProtocol2 dht = new ChordProtocol2(props, myself);
 
 
         //Register applications in babel
@@ -71,7 +72,7 @@ public class Main {
         //Start babel and protocol threads
         babel.start();
 
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> logger.info("Goodbye")));
+        //Runtime.getRuntime().addShutdownHook(new Thread(() -> logger.info("Goodbye")));
 
     }
 

@@ -26,7 +26,7 @@ import utils.HashGenerator;
 import utils.HashProducer;
 
 public class StorageProtocol extends GenericProtocol {
-	private static final Logger logger = LogManager.getLogger(StorageProtocol.class);
+	//private static final Logger logger = LogManager.getLogger(StorageProtocol.class);
 	public final static short PROTOCOL_ID = 600;
 	public final static String PROTOCOL_NAME = "Storage";
 
@@ -75,7 +75,7 @@ public class StorageProtocol extends GenericProtocol {
 	private void uponChannelCreated(ChannelCreated notification, short sourceProto) {
 		registerSharedChannel(notification.getChannelId());
 		int cId = notification.getChannelId();
-		logger.info("Channel ready {}", cId );
+		//logger.info("Channel ready {}", cId );
 	}
 
 
@@ -85,16 +85,19 @@ public class StorageProtocol extends GenericProtocol {
 		
 		BigInteger id = HashGenerator.generateHash(request.getName());//new BigInteger(toB);
 		BigInteger idLocalNode = HashGenerator.generateHash(self.toString());
-		
+		StoreOKReply storeReply= new StoreOKReply(request.getName(), request.getRequestUID());
+		sendReply(storeReply,upProtoId );
+		sendReply(storeReply,upProtoId );
+		/*
 		if(id==idLocalNode) {
 			contentsMap.put(request.getName(), request.getContent());
 			StoreOKReply storeReply= new StoreOKReply(request.getName(), request.getRequestUID());
 			sendReply(storeReply,upProtoId );
-			logger.info(" Sending Store Ok Reply to App on node {} with hash {}", self.getPort(), HashGenerator.generateHash(request.getName()));
+			//logger.info(" Sending Store Ok Reply to App on node {} with hash {}", self.getPort(), HashGenerator.generateHash(request.getName()));
 		}else {
 			LookupRequest lookupRequest = new LookupRequest(id, request.getName());
 			sendRequest(lookupRequest, dhtProtoId);
-		}
+		}*/
 		
 	}
 
@@ -106,7 +109,7 @@ public class StorageProtocol extends GenericProtocol {
 		if(content!=null) {
 			RetrieveOKReply retrieve= new RetrieveOKReply(request.getName(), request.getRequestUID(), content);
 			sendReply(retrieve, upProtoId);
-			logger.info(" Sending Retrieve Ok Reply to App" );
+			//logger.info(" Sending Retrieve Ok Reply to App" );
 		}else {
 
 			String name = request.getName();
@@ -120,13 +123,13 @@ public class StorageProtocol extends GenericProtocol {
 	private void uponLookupOkReply(LookupOKReply reply, short sourceProto){
 		RetrieveOKReply retrieve = new RetrieveOKReply(reply.getName(), reply.getUid(), reply.getContent());
 		sendReply(retrieve, upProtoId);
-		logger.info(" Sending Retrieve Ok Reply to App" );
+		//logger.info(" Sending Retrieve Ok Reply to App" );
 	}
 
 	private void uponLookupFailedReply(LookupFailedReply reply, short sourceProto){
 		RetrieveFailedReply retrieve = new RetrieveFailedReply(reply.getName(), reply.getUid());
 		sendReply(retrieve, upProtoId);
-		logger.info(" Sending Retrieve Failed Reply to App" );
+		//logger.info(" Sending Retrieve Failed Reply to App" );
 	}
 	
 	/*

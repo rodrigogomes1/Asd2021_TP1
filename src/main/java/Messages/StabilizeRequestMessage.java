@@ -12,7 +12,7 @@ import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 public class StabilizeRequestMessage extends ProtoMessage {
-    public static final short MSG_ID = 201;
+    public static final short MSG_ID = 205;
 
     
     private final Host sender;

@@ -13,7 +13,6 @@ public class SuccessorToJoinFoundMessage extends ProtoMessage {
 
     
     private final Host successorHost;
-    
     private final BigInteger successorId;
 
     //private final BigInteger hash;

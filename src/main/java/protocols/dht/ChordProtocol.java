@@ -1,20 +1,15 @@
 package protocols.dht;
 
+import Messages.*;
 import channel.notifications.ChannelCreated;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import ChordTimers.StabilizeTimer;
-import Messages.JoinMessage;
-import Messages.StabilizeRequestMessage;
-import Messages.SuccessorToJoinFoundMessage;
-import protocols.dht.replies.LookupFailedReply;
-import protocols.dht.replies.LookupOKReply;
+import protocols.dht.ChordTimers.StabilizeTimer;
 import protocols.dht.requests.LookupRequest;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
-import pt.unl.fct.di.novasys.babel.generic.ProtoReply;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionDown;
 import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionUp;
@@ -30,7 +25,6 @@ import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 
 public class ChordProtocol extends GenericProtocol {
@@ -46,7 +40,8 @@ public class ChordProtocol extends GenericProtocol {
     
     private Hashtable<BigInteger, Host> fingerTable;
     
-    private BigInteger predecessor;
+    private BigInteger predecessorId;
+    private Host predecessorHost;
     private BigInteger successorId;
     private Host successorHost;
     private BigInteger idLocalNode;
@@ -60,9 +55,7 @@ public class ChordProtocol extends GenericProtocol {
         idLocalNode = HashGenerator.generateHash(self.toString());
         
         this.stabilizeTime = Integer.parseInt(props.getProperty("stabilize_Time", "2000")); //2 seconds
-        
-        
-        
+
         //Lookup
         registerRequestHandler(LookupRequest.REQUEST_ID, this::uponLookupRequest);
 
@@ -88,12 +81,18 @@ public class ChordProtocol extends GenericProtocol {
         
         /*---------------------- Register Message Serializers ---------------------- */     
         registerMessageSerializer(channelId, JoinMessage.MSG_ID, JoinMessage.serializer);
-        registerMessageSerializer(channelId, JoinMessage.MSG_ID, SuccessorToJoinFoundMessage.serializer);
+        registerMessageSerializer(channelId, SuccessorToJoinFoundMessage.MSG_ID, SuccessorToJoinFoundMessage.serializer);
+        registerMessageSerializer(channelId, StabilizeRequestMessage.MSG_ID, StabilizeRequestMessage.serializer);
+        registerMessageSerializer(channelId, StabilizeResponseMessage.MSG_ID, StabilizeResponseMessage.serializer);
+        registerMessageSerializer(channelId, NotifyMessage.MSG_ID, NotifyMessage.serializer);
 
         /*---------------------- Register Message Handlers ---------------------- */    
         registerMessageHandler(channelId, JoinMessage.MSG_ID, this::uponJoinMessageReceive);
-        registerMessageHandler(channelId, JoinMessage.MSG_ID, this::uponJoinFoundMessageReceive);
-        
+        registerMessageHandler(channelId, SuccessorToJoinFoundMessage.MSG_ID, this::uponJoinFoundMessageReceive);
+        registerMessageHandler(channelId, StabilizeRequestMessage.MSG_ID, this::uponStabilizeRequestMessageReceive);
+        registerMessageHandler(channelId, StabilizeResponseMessage.MSG_ID, this::uponStabilizeResponseMessageReceive);
+        registerMessageHandler(channelId, NotifyMessage.MSG_ID, this::uponNotifyMessageReceive);
+
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(StabilizeTimer.TIMER_ID, this::uponStabilizeTimer);
 
@@ -112,8 +111,8 @@ public class ChordProtocol extends GenericProtocol {
                  //We add to the pending set until the connection is successful
                  pending.add(contactHost);
                  openConnection(contactHost);
-                 predecessor=null;
-                 
+                 predecessorId=null;
+                 predecessorHost=null;
                  sendMessage(new JoinMessage(self,idLocalNode), contactHost);
                               
              } catch (Exception e) {
@@ -122,7 +121,8 @@ public class ChordProtocol extends GenericProtocol {
                  System.exit(-1);
              }
          }else {
-	    	 	predecessor=null;
+    	        predecessorId=null;
+    	        predecessorHost=null;
 	     		successorId=HashGenerator.generateHash(self.toString());
 	     		successorHost=self;
          }
@@ -157,35 +157,42 @@ public class ChordProtocol extends GenericProtocol {
     	
     	logger.debug("Successor of peer {} changed to host {} with id {}",idLocalNode, successorHost,successorId);
     }
-    
-    
-    
+
+    //Send Stabilize request to successor
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
        	logger.debug("Tries to do stabilize");
-       	
        	sendMessage(new StabilizeRequestMessage(self), successorHost);
     }
+
+    // Receive stabilize request, sends predecessor to node that asked
+    private void uponStabilizeRequestMessageReceive(StabilizeRequestMessage msg, Host from, short sourceProto, int channelId) {
+        logger.debug("Received StabilizeRequesteMsg {} from {}", msg, from);
+        sendMessage(new StabilizeResponseMessage(predecessorHost, predecessorId), from);
+    }
+
+    // Receive stabilize answer
+    private void uponStabilizeResponseMessageReceive(StabilizeResponseMessage msg, Host from, short sourceProto, int channelId){
+        logger.debug("Received StabilizeResponseMsg {} from {}", msg, from);
+        if (msg.getPredecessorId().compareTo(successorId) < 0){
+            //New successor
+            successorId = msg.getPredecessorId();
+            successorHost = msg.getPredecessorHost();
+
+            //Notify new successor
+            sendMessage(new NotifyMessage(self, idLocalNode), successorHost);
+        }
+    }
+
+    // Receive notify message
+    private void uponNotifyMessageReceive(NotifyMessage msg, Host from, short sourceProto, int channelId){
+        logger.debug("Received NotifyMsg {} from {}", msg, from);
+        if(predecessorId == null && msg.getNotifyId().compareTo(predecessorId)>0){
+            predecessorId = msg.getNotifyId();
+            predecessorHost = msg.getHost();
+        }
+    }
     
-	 private void StabilizeRequestMessageReceive(SuccessorToJoinFoundMessage msg, Host from, short sourceProto, int channelId) {
-	    	//TODO 
-	    	logger.debug("Received SuccessorToJoinFoundMessage {} from {}", msg, from);
-	    	
-	    	successorHost=msg.getsuccessorHost();
-	    	successorId= msg.getsuccessorId();
-	    	
-	    	logger.debug("Successor of peer {} changed to host {} with id {}",idLocalNode, successorHost,successorId);
-	    }
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
   //If a connection is successfully established, this event is triggered. In this protocol, we want to add the
     //respective peer to the membership, and inform the Dissemination protocol via a notification.
     private void uponOutConnectionUp(OutConnectionUp event, int channelId) {
@@ -218,16 +225,9 @@ public class ChordProtocol extends GenericProtocol {
     private void uponInConnectionDown(InConnectionDown event, int channelId) {
         logger.trace("Connection from {} is down, cause: {}", event.getNode(), event.getCause());
     }
-    
-    
-
-  
 
     private void uponLookupRequest(LookupRequest request, short sourceProto) {
         logger.info("Receive lookup Request for content with name {}", request.getName() );
-        
-        
-
     }
 
 }
