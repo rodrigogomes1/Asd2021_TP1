@@ -62,6 +62,8 @@ public class StorageProtocol extends GenericProtocol {
 		registerReplyHandler(LookupOKReply.REPLY_ID, this::uponLookupOkReply);
 		registerReplyHandler(LookupFailedReply.REPLY_ID, this::uponLookupFailedReply);
 
+		registerReplyHandler(StoreOKReply.REPLY_ID, this::uponStoreOkReply);
+
 	}
 
 	@Override
@@ -78,8 +80,11 @@ public class StorageProtocol extends GenericProtocol {
 		//logger.info("Channel ready {}", cId );
 	}
 
+	private void uponStoreRequest(StoreRequest request, short sourceProto) {
+		sendRequest(request, dhtProtoId);
+	}
 
-
+	/*
 	private void uponStoreRequest(StoreRequest request, short sourceProto) {
 		
 		
@@ -98,9 +103,6 @@ public class StorageProtocol extends GenericProtocol {
 			LookupRequest lookupRequest = new LookupRequest(id, request.getName());
 			sendRequest(lookupRequest, dhtProtoId);
 		}*/
-		
-	}
-
 	
 	private void uponRetrieveRequest(RetrieveRequest request, short sourceProto) {
 	
@@ -131,7 +133,12 @@ public class StorageProtocol extends GenericProtocol {
 		sendReply(retrieve, upProtoId);
 		//logger.info(" Sending Retrieve Failed Reply to App" );
 	}
-	
+
+	private void uponStoreOkReply(StoreOKReply reply, short sourceProto){
+		sendReply(reply, upProtoId);
+	}
+
+
 	/*
 	private void uponLookUpResponse(LookUpReply reply, short sourceProto) {
 		RetrieveOKReply retrieve= new RetrieveOKReply(request.getName(), request.getRequestUID(), content);

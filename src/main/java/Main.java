@@ -53,7 +53,7 @@ public class Main {
         StorageProtocol storage = new StorageProtocol(props,myself, (short) 700, (short) 300); /**You need to uncomment this line and define the protocol**/
         // DHT Protocol
         //DHTProtocol dht = new ...; /**You need to uncomment this line and define the protocol**/
-        ChordProtocol2 dht = new ChordProtocol2(props, myself);
+        ChordProtocol2 dht = new ChordProtocol2(props, myself, (short) 600);
 
 
         //Register applications in babel

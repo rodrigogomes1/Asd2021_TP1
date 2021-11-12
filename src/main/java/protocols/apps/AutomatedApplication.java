@@ -25,7 +25,7 @@ import pt.unl.fct.di.novasys.channel.tcp.events.ChannelMetrics;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 public class AutomatedApplication extends GenericProtocol {
-	//private static final Logger logger = LogManager.getLogger(AutomatedApplication.class);
+	private static final Logger logger = LogManager.getLogger(AutomatedApplication.class);
 
 	//Protocol information, to register in babel
 	public static final String PROTO_NAME = "AutomatedApplication";
@@ -140,7 +140,7 @@ public class AutomatedApplication extends GenericProtocol {
 		new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 		StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 		sendRequest(request, storageProtoId);
-		//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+		logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 		this.storeRequests++;
 	}
 
@@ -157,7 +157,7 @@ public class AutomatedApplication extends GenericProtocol {
 	private void uponStoreOk(StoreOKReply reply, short sourceProto) {
 		this.storedKeys++;
 		this.storeRequestsCompleted++;
-		//logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
+		logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
 		if(this.storedKeys >= this.numberContents) {
 			//Start requests periodically
 			requestTimer = setupPeriodicTimer(new RequestTimer(), 0, requestInterval);
@@ -168,7 +168,7 @@ public class AutomatedApplication extends GenericProtocol {
 			new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 			StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 			sendRequest(request, storageProtoId);
-			//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+			logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 			this.storeRequests++;
 		}
 	}
@@ -189,12 +189,12 @@ public class AutomatedApplication extends GenericProtocol {
 		setupTimer(new ExitTimer(), cooldownTime * 1000);
 	}
 	private void uponExitTimer(ExitTimer exitTimer, long timerId) {
-		//logger.info("Exiting...");
-		//logger.info("{}: Executed {} store requests.", self, this.storeRequests);
-		//logger.info("{}: Completed {} store requests.", self, this.storeRequestsCompleted);
-		//logger.info("{}: Executed {} retrieve requests.", self, this.retrieveRequests);
-		//logger.info("{}: Success on {} retrieve requests.", self, this.retrieveRequestsSuccessful);
-		//logger.info("{}: Failed on {} retrieve requests.", self, this.retrieveRequestsFailed);
+		logger.info("Exiting...");
+		logger.info("{}: Executed {} store requests.", self, this.storeRequests);
+		logger.info("{}: Completed {} store requests.", self, this.storeRequestsCompleted);
+		logger.info("{}: Executed {} retrieve requests.", self, this.retrieveRequests);
+		logger.info("{}: Success on {} retrieve requests.", self, this.retrieveRequestsSuccessful);
+		logger.info("{}: Failed on {} retrieve requests.", self, this.retrieveRequestsFailed);
 		System.exit(0);
 	}
 	
