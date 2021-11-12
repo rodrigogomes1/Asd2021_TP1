@@ -69,12 +69,14 @@ public class TestProtocol extends GenericProtocol{
         logger.info("Receive lookup Request for content with name {}", request.getName() );
         Random rand = new Random();
         ProtoReply reply = null;
-
+    /*
         if(rand.nextInt(2) == 1)
             reply = new LookupOKReply(request.getID(), request.getRequestUID(), request.getName(), new byte[]{});
         else
             reply = new LookupFailedReply(request.getID(), request.getRequestUID(), request.getName());
 
         sendReply(reply, sourceProto);
+
+     */
     }
 }

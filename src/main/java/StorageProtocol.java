@@ -11,12 +11,15 @@ import org.apache.logging.log4j.core.config.plugins.convert.TypeConverters.BigIn
 
 import channel.notifications.ChannelCreated;
 import protocols.dht.replies.LookupFailedReply;
+import protocols.dht.replies.LookupLocalReply;
 import protocols.dht.replies.LookupOKReply;
 import protocols.dht.requests.LookupRequest;
 import protocols.storage.replies.RetrieveFailedReply;
 import protocols.storage.replies.RetrieveOKReply;
 import protocols.storage.replies.StoreOKReply;
+import protocols.storage.requests.LookupLocalRequest;
 import protocols.storage.requests.RetrieveRequest;
+import protocols.storage.requests.StoreLocalRequest;
 import protocols.storage.requests.StoreRequest;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -34,34 +37,35 @@ public class StorageProtocol extends GenericProtocol {
 	private final short upProtoId;
 
 	private final HashMap<String, byte[]> contentsMap = new HashMap<String,  byte[]>();
-	
+
 	private final Host self;
-	
+
 	private int channelId; //Id of the created channel 
 	private boolean channelReady;
 
 	HashProducer hashProducer;
-	
+
 	public StorageProtocol(Properties props, Host self,short dhtProtoId, short upProtoId) throws HandlerRegistrationException, IOException {
 		super(PROTOCOL_NAME, PROTOCOL_ID);
-		this.self=self; 
+		this.self=self;
 		channelId=-1;
 		this.dhtProtoId = dhtProtoId;
 		this.upProtoId = upProtoId; //ProtoId of protocol above, AutomatedApplication
 		channelReady = false;
 		hashProducer = new HashProducer(self);
-		
+
 		/*--------------------- Register Request Handlers ----------------------------- */
 		registerRequestHandler(StoreRequest.REQUEST_ID, this::uponStoreRequest);
 		registerRequestHandler(RetrieveRequest.REQUEST_ID, this::uponRetrieveRequest);
-		
+		registerRequestHandler(StoreLocalRequest.REQUEST_ID, this::uponStoreLocalRequest);
+		registerRequestHandler(LookupLocalRequest.REQUEST_ID, this::uponLookupLocalRequest);
+
 		 /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(ChannelCreated.NOTIFICATION_ID, this::uponChannelCreated);
-		
+
 		/*--------------------- Register Reply Handlers ----------------------------- */
 		registerReplyHandler(LookupOKReply.REPLY_ID, this::uponLookupOkReply);
 		registerReplyHandler(LookupFailedReply.REPLY_ID, this::uponLookupFailedReply);
-
 		registerReplyHandler(StoreOKReply.REPLY_ID, this::uponStoreOkReply);
 
 	}
@@ -70,7 +74,7 @@ public class StorageProtocol extends GenericProtocol {
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
 		// TODO Auto-generated method stub
 
-		
+
 	}
 
 
@@ -84,41 +88,31 @@ public class StorageProtocol extends GenericProtocol {
 		sendRequest(request, dhtProtoId);
 	}
 
-	/*
-	private void uponStoreRequest(StoreRequest request, short sourceProto) {
-		
-		
-		BigInteger id = HashGenerator.generateHash(request.getName());//new BigInteger(toB);
-		BigInteger idLocalNode = HashGenerator.generateHash(self.toString());
-		StoreOKReply storeReply= new StoreOKReply(request.getName(), request.getRequestUID());
-		sendReply(storeReply,upProtoId );
-		sendReply(storeReply,upProtoId );
-		/*
-		if(id==idLocalNode) {
-			contentsMap.put(request.getName(), request.getContent());
-			StoreOKReply storeReply= new StoreOKReply(request.getName(), request.getRequestUID());
-			sendReply(storeReply,upProtoId );
-			//logger.info(" Sending Store Ok Reply to App on node {} with hash {}", self.getPort(), HashGenerator.generateHash(request.getName()));
-		}else {
-			LookupRequest lookupRequest = new LookupRequest(id, request.getName());
-			sendRequest(lookupRequest, dhtProtoId);
-		}*/
+	private void uponStoreLocalRequest(StoreLocalRequest request, short sourceProto) {
+		contentsMap.put(request.getName(), request.getContent());
+	}
+
+	private void uponLookupLocalRequest(LookupLocalRequest request, short sourceProto){
+		byte[] content= contentsMap.get(request.getName());
+		if(content!=null)
+			sendReply(new LookupLocalReply(request.getName(), request.getHost(),content), sourceProto);
+		else
+			sendReply(new LookupLocalReply(request.getName(), request.getHost(),new byte[0]), sourceProto);
+	}
 	
 	private void uponRetrieveRequest(RetrieveRequest request, short sourceProto) {
-	
-		byte[] content= contentsMap.get(request.getName());	
+
+		byte[] content= contentsMap.get(request.getName());
 		
 		if(content!=null) {
 			RetrieveOKReply retrieve= new RetrieveOKReply(request.getName(), request.getRequestUID(), content);
 			sendReply(retrieve, upProtoId);
 			//logger.info(" Sending Retrieve Ok Reply to App" );
 		}else {
-
 			String name = request.getName();
 			BigInteger id = HashGenerator.generateHash(name);//new BigInteger(toB);
 			LookupRequest lookupRequest = new LookupRequest(id, name);
 			sendRequest(lookupRequest, dhtProtoId);
-		
 		}
 	}
 

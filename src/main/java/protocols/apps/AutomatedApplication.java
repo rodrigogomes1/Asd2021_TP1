@@ -140,7 +140,7 @@ public class AutomatedApplication extends GenericProtocol {
 		new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 		StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 		sendRequest(request, storageProtoId);
-		logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+		//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 		this.storeRequests++;
 	}
 
@@ -157,7 +157,7 @@ public class AutomatedApplication extends GenericProtocol {
 	private void uponStoreOk(StoreOKReply reply, short sourceProto) {
 		this.storedKeys++;
 		this.storeRequestsCompleted++;
-		logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
+		//logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
 		if(this.storedKeys >= this.numberContents) {
 			//Start requests periodically
 			requestTimer = setupPeriodicTimer(new RequestTimer(), 0, requestInterval);
@@ -168,7 +168,7 @@ public class AutomatedApplication extends GenericProtocol {
 			new Random(this.localIndex*1000+this.storedKeys).nextBytes(content);
 			StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 			sendRequest(request, storageProtoId);
-			logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+			//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
 			this.storeRequests++;
 		}
 	}

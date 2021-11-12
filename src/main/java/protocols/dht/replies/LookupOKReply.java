@@ -8,20 +8,15 @@ import java.util.UUID;
 public class LookupOKReply extends ProtoReply {
 
     final public static short REPLY_ID = 701;
-    private BigInteger id;
     private UUID uid;
     private String name;
     private byte[] content;
 
-    public LookupOKReply(BigInteger id, UUID uid, String name, byte[] content) {
+    public LookupOKReply(String name, UUID uid, byte[] content) {
         super(REPLY_ID);
         this.name = name;
         this.content = content;
         this.uid = uid;
-    }
-
-    public BigInteger getLookupId() {
-        return id;
     }
 
     public UUID getUid() {
