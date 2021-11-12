@@ -1,4 +1,4 @@
-package ChordTimers;
+package protocols.dht.ChordTimers;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 

@@ -1,12 +1,12 @@
-package ChordTimers;
+package protocols.dht.ChordTimers;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 
-public class StabilizeTimer extends ProtoTimer {
+public class FixFingersTimer extends ProtoTimer {
 
-    public static final short TIMER_ID = 800;
+    public static final short TIMER_ID = 8277;
 
-    public StabilizeTimer() {
+    public FixFingersTimer() {
         super(TIMER_ID);
     }
 

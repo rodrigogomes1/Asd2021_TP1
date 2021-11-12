@@ -1,11 +1,12 @@
 package protocols.dht;
 
+import protocols.dht.ChordTimers.CheckPredecessorTimer;
+import protocols.dht.ChordTimers.FixFingersTimer;
 import protocols.dht.ChordTimers.StabilizeTimer;
 import channel.notifications.ChannelCreated;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import ChordTimers.CheckPredecessorTimer;
 import protocols.dht.messages.*;
 import protocols.dht.replies.LookupFailedReply;
 import protocols.dht.replies.LookupOKReply;
@@ -22,6 +23,7 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import utils.HashGenerator;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -42,17 +44,18 @@ public class ChordProtocol2 extends GenericProtocol {
     private final BigInteger selfId;
     private final int stabilizeTime; //param: timeout for stabilize
     private final int checkPredecessorTime; //param: timeout for checkPredecessor
+    private final int fixFingersTime; //param: timeout for fixFingers
     private final int channelId;
 
     private Hashtable<BigInteger, Host> fingerTable;
-
+    
     private Host sucHost;
     private BigInteger sucId;
     private Host preHost;
     private BigInteger preId;
     private final Set<Host> connections; //Peers I am connected to
 
-    private boolean channelReady;
+    private int next;
 
     public ChordProtocol2(Properties props, Host self, short storageProtoId) throws HandlerRegistrationException, IOException {
         super(PROTOCOL_NAME, PROTOCOL_ID);
@@ -64,6 +67,9 @@ public class ChordProtocol2 extends GenericProtocol {
 
         this.stabilizeTime = Integer.parseInt(props.getProperty("stabilize_Time", "2000")); //2 seconds
         this.checkPredecessorTime = Integer.parseInt(props.getProperty("checkPredecessor_Time", "2500")); //2.5 seconds
+        this.fixFingersTime = Integer.parseInt(props.getProperty("fixFingers_Time", "2250")); //2.5 seconds
+        
+        next=0;
 
         fingerTable = new Hashtable<>();
 
@@ -106,6 +112,7 @@ public class ChordProtocol2 extends GenericProtocol {
         /*--------------------- Register Timer Handlers ----------------------------- */
         registerTimerHandler(StabilizeTimer.TIMER_ID, this::uponStabilizeTimer);
         registerTimerHandler(CheckPredecessorTimer.TIMER_ID, this::uponCheckPredecessorTimer);
+        registerTimerHandler(FixFingersTimer.TIMER_ID, this::uponFixFingersTimer);
 
         //System.out.println("Constructor chord");
     }
@@ -122,6 +129,7 @@ public class ChordProtocol2 extends GenericProtocol {
             String contact = props.getProperty("contact");
             String[] hostElems = contact.split(":");
             Host contactHost = new Host(InetAddress.getByName(hostElems[0]), Short.parseShort(hostElems[1]));
+            
             openConnection(contactHost, channelId);
             sendMessage(channelId, new FindSucMsg(selfHost, selfId, selfId), contactHost);
 
@@ -134,33 +142,33 @@ public class ChordProtocol2 extends GenericProtocol {
         //Setup the timer used to do the stabilize method periodically (we registered its handler on the constructor)
         setupPeriodicTimer(new StabilizeTimer(), this.stabilizeTime, this.stabilizeTime);
         setupPeriodicTimer(new CheckPredecessorTimer(), this.checkPredecessorTime, this.checkPredecessorTime);
+        setupPeriodicTimer(new FixFingersTimer(), this.fixFingersTime, this.fixFingersTime);
         //System.out.println("Constructor end");
     }
 
     private void uponFindSucMsg(FindSucMsg msg, Host from, short sourceProto, int channelId){
         //System.out.println("Received FindSucMsg {} from {}");
-        BigInteger receivedId= msg.getTargetId();
+        BigInteger targetId= msg.getTargetId();
         // sera condicao para comparar selfId com receivedID, e será necessario como um id deve ser unico pelo o hash
-        if(sucId.compareTo(selfId)==0 || between(selfId, receivedId, sucId)) {
+        if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
-            sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId), msg.getHost());
+            sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
         }else {
-            BigInteger max = null;
-            for(BigInteger tableEntry : fingerTable.keySet()) {
-                if(tableEntry.compareTo(receivedId) <= 0) {
-                    max=tableEntry;
-                }else {
-                    break;
-                }
-            }
-            sendMessage(this.channelId, msg, fingerTable.get(max));
+            Host destintyHost = findTargetInFingers(targetId);
+            sendMessage(this.channelId, msg,destintyHost);
         }
     }
 
     private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
         //System.out.println("Receive sucMsgResponse");
-        sucId = msg.getHashId();
-        sucHost = msg.getHost();
+    	if(msg.getHashId() == msg.getTargetId()) {
+    		sucId = msg.getHashId();
+	        sucHost = msg.getHost();
+    	}else {
+    		fingerTable.put(msg.getTargetId(), msg.getHost());
+    	}
+       
+        
     }
 
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
@@ -168,10 +176,70 @@ public class ChordProtocol2 extends GenericProtocol {
         openConnection(sucHost, this.channelId);
         sendMessage(this.channelId, new StabilizeMsg(selfHost, selfId), sucHost);
     }
-
+    
+    private void uponStabilizeMsgResponse(StabilizeMsgResponse msg, Host from, short sourceProto, int channelId) {
+        //System.out.println("Receive sucMsgResponse");
+        if(between(selfId, msg.getHashId(), sucId)){ //if smaller than suc and bigger than self, new suc
+            sucId = msg.getHashId();
+            sucHost = msg.getHost();
+        }
+    }
+    
+    
+    private Host findTargetInFingers(BigInteger targetId) {
+    	BigInteger max = null;
+        for(BigInteger tableEntry : fingerTable.keySet()) {
+        	
+            if(fingerTable.get(tableEntry).compareTo(targetId) <= 0) {
+                max=tableEntry;
+            }else {
+                break;
+            }
+        }
+        if(max==null) {
+        	return sucHost;
+        }else {
+        	return fingerTable.get(max);
+        }
+         
+    }
+    
+    
+    private void uponFixFingersTimer(FixFingersTimer timer, long timerId) {
+        //System.out.println("FixFingers Timer");
+    	int m=5;
+    	next= next + 1;
+    	
+    	if(next>m) {
+    		next=1;
+    	}
+    	
+    	BigInteger index = BigDecimal.valueOf( Math.pow(2, next-1 ) ).toBigInteger();
+    	
+    	BigInteger targetKey= selfId.add(index) ;
+    	
+    	
+    	
+    	Host contactHost=findTargetInFingers(targetKey);
+    	
+    	
+    	if(contactHost) {
+    		
+    	}
+    	
+    	openConnection(contactHost, channelId);
+    	
+        sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
+    	
+    	
+    	//fingerTable.put(targetKey, value);
+        
+    }
+    
+    
     private void uponStoreRequest(StoreRequest request, short sourceProto){
         BigInteger fileId = HashGenerator.generateHash(request.getName());
-        if(between(selfId, fileId, sucId))
+        if(between(selfId, fileId, sucId)) ///se estiver entre os dois guarda no sucessor
             //TODO - mudar para requestStore, função para guardar localmente, e adcionar id a um set no dht
             sendReply(new StoreOKReply(request.getName(), request.getRequestUID()), storageProtoId);
         else if(sucHost != null)
@@ -215,13 +283,7 @@ public class ChordProtocol2 extends GenericProtocol {
 
     }
 
-    private void uponStabilizeMsgResponse(StabilizeMsgResponse msg, Host from, short sourceProto, int channelId) {
-        //System.out.println("Receive sucMsgResponse");
-        if(between(selfId, msg.getHashId(), sucId)){ //if smaller than suc and bigger than self, new suc
-            sucId = msg.getHashId();
-            sucHost = msg.getHost();
-        }
-    }
+    
 
     private void uponCheckPredecessorTimer(CheckPredecessorTimer timer, long timerId) {
         //System.out.println("Check predecessor timer");
