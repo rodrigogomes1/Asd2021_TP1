@@ -162,27 +162,26 @@ public class ChordProtocol2 extends GenericProtocol {
     }
 
     private void uponFindSucMsg(FindSucMsg msg, Host from, short sourceProto, int channelId){
-        System.out.println("Received FindSucMsg {} from {}");
+        //System.out.println("Received FindSucMsg {} from {}");
         BigInteger targetId= msg.getTargetId();
-        
+
         if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
             sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
         }else {
             Host destintyHost = findTargetInFingers(targetId);
-            //sendMessage(this.channelId, msg,destintyHost);
-            sendMessage(this.channelId, msg,sucHost);
+            sendMessage(this.channelId, msg,destintyHost);
         }
     }
 
     private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
-        System.out.println("Receive sucMsgResponse");
-    	if(selfId == msg.getTargetId()) {
-    		sucId = msg.getHashId();
-	        sucHost = msg.getHost();
-    	}else {
-    		fingerTable.put(msg.getTargetId(), msg.getHost());
-    	}
+        //System.out.println("Receive sucMsgResponse");
+        if(selfId == msg.getTargetId()) {
+            sucId = msg.getHashId();
+            sucHost = msg.getHost();
+        }else {
+            fingerTable.put(msg.getTargetId(), msg.getHost());
+        }
     }
 
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
@@ -201,45 +200,45 @@ public class ChordProtocol2 extends GenericProtocol {
     
     
     private Host findTargetInFingers(BigInteger targetId) {
-    	BigInteger max = null;
-        /*for(BigInteger tableEntry : fingerTable.keySet()) {
-        	
-            if(fingerTable.get(tableEntry).compareTo(targetId) <= 0) {
+        BigInteger max = null;
+        for(BigInteger tableEntry : fingerTable.keySet()) {
+
+            if(tableEntry.compareTo(targetId) <= 0) {
                 max=tableEntry;
             }else {
                 break;
             }
         }
         if(max==null) {
-        	return sucHost;
+            return sucHost;
         }else {
-        	return fingerTable.get(max);
-        }*/
-        return sucHost;
+            return fingerTable.get(max);
+        }
+
     }
     
     
     private void uponFixFingersTimer(FixFingersTimer timer, long timerId) {
         //System.out.println("FixFingers Timer");
-    	/*int m=5;
-    	next= next + 1;
-    	
-    	if(next>m) {
-    		next=1;
-    	}
-    	
-    	BigInteger index = BigDecimal.valueOf( Math.pow(2, next-1 ) ).toBigInteger();
-    	BigInteger targetKey= selfId.add(index) ;
-    	   	
-    	Host contactHost=findTargetInFingers(targetKey);
-    	
-       	if(contactHost.equals(sucHost)) {
-    		fingerTable.put(targetKey, sucHost);
-    	}else {
-    		openConnection(contactHost, channelId);
+        int m=5;
+        next= next + 1;
+
+        if(next>m) {
+            next=1;
+        }
+
+        BigInteger index = BigDecimal.valueOf( Math.pow(2, next-1 ) ).toBigInteger();
+        BigInteger targetKey= selfId.add(index);
+
+        Host contactHost=findTargetInFingers(targetKey);
+
+        if(contactHost.equals(sucHost)) {
+            fingerTable.put(targetKey, sucHost);
+        }else {
+            openConnection(contactHost, channelId);
             sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
-    	}
-       	*/
+        }
+
     }
     
     
