@@ -149,7 +149,7 @@ public class ChordProtocol2 extends GenericProtocol {
     private void uponFindSucMsg(FindSucMsg msg, Host from, short sourceProto, int channelId){
         //System.out.println("Received FindSucMsg {} from {}");
         BigInteger targetId= msg.getTargetId();
-        // sera condicao para comparar selfId com receivedID, e será necessario como um id deve ser unico pelo o hash
+        
         if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
             sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
@@ -161,14 +161,12 @@ public class ChordProtocol2 extends GenericProtocol {
 
     private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
         //System.out.println("Receive sucMsgResponse");
-    	if(msg.getHashId() == msg.getTargetId()) {
+    	if(selfId == msg.getTargetId()) {
     		sucId = msg.getHashId();
 	        sucHost = msg.getHost();
     	}else {
     		fingerTable.put(msg.getTargetId(), msg.getHost());
     	}
-       
-        
     }
 
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
@@ -215,25 +213,17 @@ public class ChordProtocol2 extends GenericProtocol {
     	}
     	
     	BigInteger index = BigDecimal.valueOf( Math.pow(2, next-1 ) ).toBigInteger();
-    	
     	BigInteger targetKey= selfId.add(index) ;
-    	
-    	
-    	
+    	   	
     	Host contactHost=findTargetInFingers(targetKey);
     	
-    	
-    	if(contactHost) {
-    		
+       	if(contactHost.equals(sucHost)) {
+    		fingerTable.put(targetKey, sucHost);
+    	}else {
+    		openConnection(contactHost, channelId);
+            sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
     	}
-    	
-    	openConnection(contactHost, channelId);
-    	
-        sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
-    	
-    	
-    	//fingerTable.put(targetKey, value);
-        
+       	
     }
     
     
