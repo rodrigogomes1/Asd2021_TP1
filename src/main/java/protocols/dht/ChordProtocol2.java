@@ -167,6 +167,7 @@ public class ChordProtocol2 extends GenericProtocol {
 
         if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
+            //System.out.println("Aquiiiii: "+ (sucHost==null));
             sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
         }else {
             Host destintyHost = findTargetInFingers(targetId);
@@ -175,8 +176,8 @@ public class ChordProtocol2 extends GenericProtocol {
     }
 
     private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
-        //System.out.println("Receive sucMsgResponse");
-        if(selfId == msg.getTargetId()) {
+        //System.out.println("Receive sucMsgResponse"+(msg.getTargetId()==selfId));
+        if(selfId.compareTo(msg.getTargetId())==0) {
             sucId = msg.getHashId();
             sucHost = msg.getHost();
         }else {
@@ -185,13 +186,26 @@ public class ChordProtocol2 extends GenericProtocol {
     }
 
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
-        System.out.println("Stabilize timer: " + (sucHost==null));
+        //System.out.println("Stabilize timer: " + (sucHost==null));
         openConnection(sucHost, this.channelId);
         sendMessage(this.channelId, new StabilizeMsg(selfHost, selfId), sucHost);
     }
+
+    private void uponStabilizeMsg(StabilizeMsg msg, Host from, short sourceProto, int channelId){
+        //System.out.println("Receive stabilize msg");
+        openConnection(from, this.channelId);
+
+        //Notify
+        if(preId == null || between(preId, msg.getHashId(), selfId)){ //if bigger than my pre, new pre
+            preId = msg.getHashId();
+            preHost = msg.getHost();
+        }
+
+        sendMessage(this.channelId, new StabilizeMsgResponse(preHost, preId), from);
+    }
     
     private void uponStabilizeMsgResponse(StabilizeMsgResponse msg, Host from, short sourceProto, int channelId) {
-        System.out.println("Receive sucMsgResponse");
+        //System.out.println("Receive sucMsgResponse");
         if(between(selfId, msg.getHashId(), sucId)){ //if smaller than suc and bigger than self, new suc
             sucId = msg.getHashId();
             sucHost = msg.getHost();
@@ -206,7 +220,7 @@ public class ChordProtocol2 extends GenericProtocol {
             if(tableEntry.compareTo(targetId) <= 0) {
                 max=tableEntry;
             }else {
-                break;
+                //break;
             }
         }
         if(max==null) {
@@ -220,7 +234,7 @@ public class ChordProtocol2 extends GenericProtocol {
     
     private void uponFixFingersTimer(FixFingersTimer timer, long timerId) {
         //System.out.println("FixFingers Timer");
-        int m=5;
+        int m=2;
         next= next + 1;
 
         if(next>m) {
@@ -240,17 +254,20 @@ public class ChordProtocol2 extends GenericProtocol {
         }
 
     }
-    
-    
-    private void uponStoreRequest(StoreRequest request, short sourceProto){
+
+    private void uponStoreRequest(StoreRequest request, short sourceProto) {
+        System.out.println("Store: " + request.getName());
+        System.out.println("Suc " + sucHost);
         BigInteger fileId = HashGenerator.generateHash(request.getName());
-        if(preId == null || between(preId, fileId, selfId)) { ///se estiver entre os dois guarda no sucessor
+        if (preId == null || between(preId, fileId, selfId)) { ///se estiver entre os dois guarda no sucessor
             sendRequest(new StoreLocalRequest(request.getName(), request.getContent()), storageProtoId);
             sendReply(new StoreOKReply(request.getName(), request.getRequestUID()), storageProtoId);
             filesLocal.add(fileId);
-        }else if(sucHost != null)
-                sendMessage(this.channelId,
-                        new StoreMsg(selfHost, fileId, request.getName(), request.getContent(), request.getRequestUID()), sucHost);
+        } else if (sucHost != null){
+            Host targetHost = findNodeFile(fileId);
+            sendMessage(this.channelId,
+                    new StoreMsg(selfHost, fileId, request.getName(), request.getContent(), request.getRequestUID()), targetHost);
+        }
     }
 
     private void uponStoreMsg(StoreMsg msg, Host from, short sourceProto, int channelId){
@@ -258,9 +275,12 @@ public class ChordProtocol2 extends GenericProtocol {
             sendRequest(new StoreLocalRequest(msg.getName(), msg.getContent()), storageProtoId);
             sendMessage(new StoreSuccessMsg(msg.getName(), msg.getUid()), msg.getHost());
             filesLocal.add(msg.getFileId());
+            System.out.println("Store here: "+msg.getName());
         }
-        else if(sucHost != null)
-                sendMessage(this.channelId,msg, sucHost);
+        else if(sucHost != null) {
+            Host targetHost = findNodeFile(msg.getFileId());
+            sendMessage(this.channelId, msg, targetHost);
+        }
     }
 
     private void uponStoreSuccessMsg(StoreSuccessMsg msg, Host from, short sourceProto, int channelId) {
@@ -272,57 +292,50 @@ public class ChordProtocol2 extends GenericProtocol {
         //System.out.println("Suc "+sucHost);
         //System.out.println("Pre "+preHost);
         //for(Host host : fingerTable.values())
-            //System.out.println("Finger "+host);
+        //    System.out.println("Finger "+host);
 
         //StorageProtocol verifies that is not store locally
-        System.out.println("Lookup request: "+sucHost);
-        sendMessage(new LookupMsg(selfHost, request.getID(), request.getName(), request.getRequestUID()), sucHost);
+        //System.out.println("Lookup request: "+sucHost);
+        Host targetHost = findNodeFile(request.getID());
+        sendMessage(new LookupMsg(selfHost, request.getID(), request.getName(), request.getRequestUID()), targetHost);
     }
 
     private void uponLookupMsg(LookupMsg msg, Host from, short sourceProto, int channelId){
-        System.out.println("Lookup msg");
+        //System.out.println("Lookup msg");
         if(between(preId, msg.getFileId(), selfId)) {
             if(filesLocal.contains(msg.getFileId())){
-                System.out.println("Lookup msg contain ask protocol");
+                //System.out.println("Lookup msg contain ask protocol");
                 sendRequest(new LookupLocalRequest(msg.getName(), msg.getHost()), storageProtoId);
             }else{
-                System.out.println("Lookup msg resend");
+                //System.out.println("Lookup msg resend");
+                System.out.println("Not found");
+                System.out.println(msg.getName());
                 sendMessage(new LookupResponseMsg(msg.getName(), msg.getUid(), new byte[0]), msg.getHost());
             }
         }
-        else if(sucHost != null)
-            sendMessage(this.channelId,msg, sucHost);
+        else if(sucHost != null) {
+            //System.out.println(sucHost);
+            Host targetHost = findNodeFile(msg.getFileId());
+            sendMessage(this.channelId, msg, targetHost);
+        }
     }
 
     private void uponLookupLocalReply(LookupLocalReply reply, short sourceProto){
-        System.out.println("Storage answer, send to host");
+        //System.out.println("Storage answer, send to host");
         sendMessage(new LookupResponseMsg(reply.getName(), reply.getRequestUID(), reply.getContent()), reply.getHost());
     }
 
     private void uponLookupResponseMsg(LookupResponseMsg msg,  Host from, short sourceProto, int channelId){
-        System.out.println("Receive reply lookup: "+msg.getContent().length);
+        //System.out.println("Receive reply lookup: "+msg.getContent().length);
         byte[] content = msg.getContent();
+        System.out.println("Found??: "+content.length);
+        System.out.println(msg.getName());
+
         if(content.length == 0)
             sendReply(new LookupFailedReply(msg.getName(), msg.getUid()), storageProtoId);
         else
             sendReply(new LookupOKReply(msg.getName(), msg.getUid(), content), storageProtoId);
     }
-
-
-    private void uponStabilizeMsg(StabilizeMsg msg, Host from, short sourceProto, int channelId){
-        //System.out.println("Receive stabilize msg");
-        openConnection(from, this.channelId);
-        sendMessage(this.channelId, new StabilizeMsgResponse(preHost, preId), from);
-
-        //Notify
-        if(preId == null || between(preId, msg.getHashId(), selfId)){ //if bigger than my pre, new pre
-            preId = msg.getHashId();
-            preHost = msg.getHost();
-        }
-
-    }
-
-    
 
     private void uponCheckPredecessorTimer(CheckPredecessorTimer timer, long timerId) {
         //System.out.println("Check predecessor timer");
@@ -341,6 +354,23 @@ public class ChordProtocol2 extends GenericProtocol {
         else
             return (middle.compareTo(left)>0 || middle.compareTo(right)<0);
 
+    }
+
+    private Host findNodeFile(BigInteger id){
+        Host host = null;
+        BigInteger maxId = BigInteger.ZERO;
+
+        for(var finger : fingerTable.entrySet()){
+            if(between(maxId, id, finger.getKey())){
+                maxId = finger.getKey();
+                host = finger.getValue();
+            }
+        }
+
+        if(host == null)
+            host = sucHost;
+
+        return host;
     }
 
     //If a connection is successfully established, this event is triggered. In this protocol, we want to add the

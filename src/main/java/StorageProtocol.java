@@ -85,14 +85,17 @@ public class StorageProtocol extends GenericProtocol {
 	}
 
 	private void uponStoreRequest(StoreRequest request, short sourceProto) {
+		//System.out.println("Upon store request");
 		sendRequest(request, dhtProtoId);
 	}
 
 	private void uponStoreLocalRequest(StoreLocalRequest request, short sourceProto) {
+		//System.out.println("Upon store local request");
 		contentsMap.put(request.getName(), request.getContent());
 	}
 
 	private void uponLookupLocalRequest(LookupLocalRequest request, short sourceProto){
+		//System.out.println("Upon look local request");
 		byte[] content= contentsMap.get(request.getName());
 		if(content!=null)
 			sendReply(new LookupLocalReply(request.getName(), request.getHost(),content), sourceProto);
@@ -101,7 +104,7 @@ public class StorageProtocol extends GenericProtocol {
 	}
 	
 	private void uponRetrieveRequest(RetrieveRequest request, short sourceProto) {
-
+		//System.out.println("Upon retrieve request");
 		byte[] content= contentsMap.get(request.getName());
 		
 		if(content!=null) {
@@ -117,18 +120,21 @@ public class StorageProtocol extends GenericProtocol {
 	}
 
 	private void uponLookupOkReply(LookupOKReply reply, short sourceProto){
+		//System.out.println("Upon look ok reply");
 		RetrieveOKReply retrieve = new RetrieveOKReply(reply.getName(), reply.getUid(), reply.getContent());
 		sendReply(retrieve, upProtoId);
 		//logger.info(" Sending Retrieve Ok Reply to App" );
 	}
 
 	private void uponLookupFailedReply(LookupFailedReply reply, short sourceProto){
+		//System.out.println("Upon look failed reply");
 		RetrieveFailedReply retrieve = new RetrieveFailedReply(reply.getName(), reply.getUid());
 		sendReply(retrieve, upProtoId);
 		//logger.info(" Sending Retrieve Failed Reply to App" );
 	}
 
 	private void uponStoreOkReply(StoreOKReply reply, short sourceProto){
+		//System.out.println("Store okk reply");
 		sendReply(reply, upProtoId);
 	}
 

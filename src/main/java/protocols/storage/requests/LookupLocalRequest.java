@@ -15,7 +15,7 @@ public class LookupLocalRequest extends ProtoRequest {
 
 
     public LookupLocalRequest(String name, Host host) {
-        super(StoreLocalRequest.REQUEST_ID);
+        super(LookupLocalRequest.REQUEST_ID);
         this.name = name;
         this.host = host;
         this.uid = UUID.randomUUID();
