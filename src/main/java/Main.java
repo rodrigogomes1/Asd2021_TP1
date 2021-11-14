@@ -46,7 +46,8 @@ public class Main {
                 Integer.parseInt(props.getProperty("port")));
 
         //logger.info("Hello, I am {}", myself);
-
+        System.out.println(props.getProperty("address") + ":"+props.getProperty("port"));
+        System.out.println(props.getProperty("contact"));
         // Application
         AutomatedApplication app = new AutomatedApplication(myself, props, (short) 600 /**change this parameter to map the id of the Storage Protocol**/);
         // Storage Protocol

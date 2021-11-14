@@ -64,7 +64,6 @@ public class ChordProtocol2 extends GenericProtocol {
         selfHost = self;
         selfId = HashGenerator.generateHash(self.toString());
         this.storageProtoId = storageProtoId;
-
         this.connections = new HashSet<>();
         this.filesLocal = new HashSet<>();
 
@@ -142,17 +141,17 @@ public class ChordProtocol2 extends GenericProtocol {
         preHost = null;
         preId = null;
 
-        if (props.containsKey("contact")) { //Join chord ring containing node contact
-            // System.out.println("Join chord ring");
-            String contact = props.getProperty("contact");
-            String[] hostElems = contact.split(":");
+        String contact = props.getProperty("contact");
+        String[] hostElems = contact.split(":");
+        if (props.containsKey("contact") && !contact.equals(selfHost.toString())) { //Join chord ring containing node contact
             Host contactHost = new Host(InetAddress.getByName(hostElems[0]), Short.parseShort(hostElems[1]));
-            
+            System.out.println("Join chord ring: "+contact);
+            System.out.println("This host: "+selfHost);
             openConnection(contactHost, channelId);
             sendMessage(channelId, new FindSucMsg(selfHost, selfId, selfId), contactHost);
 
         }else{ //Create new chord ring
-            //System.out.println("Create new chord ring");
+            System.out.println("Create new chord ring: "+selfHost);
             sucHost = selfHost;
             sucId = selfId;
         }
@@ -232,7 +231,6 @@ public class ChordProtocol2 extends GenericProtocol {
 
     
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
-        //System.out.println("Stabilize timer: " + (sucHost==null));
         openConnection(sucHost, this.channelId);
         sendMessage(this.channelId, new StabilizeMsg(selfHost, selfId), sucHost);
     }
