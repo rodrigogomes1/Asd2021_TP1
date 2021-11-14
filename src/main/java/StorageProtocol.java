@@ -1,8 +1,6 @@
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.UUID;
+import java.util.*;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,17 +8,12 @@ import org.apache.logging.log4j.core.config.plugins.convert.TypeConverters.BigDe
 import org.apache.logging.log4j.core.config.plugins.convert.TypeConverters.BigIntegerConverter;
 
 import channel.notifications.ChannelCreated;
-import protocols.dht.replies.LookupFailedReply;
-import protocols.dht.replies.LookupLocalReply;
-import protocols.dht.replies.LookupOKReply;
+import protocols.dht.replies.*;
 import protocols.dht.requests.LookupRequest;
 import protocols.storage.replies.RetrieveFailedReply;
 import protocols.storage.replies.RetrieveOKReply;
 import protocols.storage.replies.StoreOKReply;
-import protocols.storage.requests.LookupLocalRequest;
-import protocols.storage.requests.RetrieveRequest;
-import protocols.storage.requests.StoreLocalRequest;
-import protocols.storage.requests.StoreRequest;
+import protocols.storage.requests.*;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
@@ -37,6 +30,7 @@ public class StorageProtocol extends GenericProtocol {
 	private final short upProtoId;
 
 	private final HashMap<String, byte[]> contentsMap = new HashMap<String,  byte[]>();
+	private final HashMap<BigInteger, String> idToName = new HashMap<>();
 
 	private final Host self;
 
@@ -59,6 +53,9 @@ public class StorageProtocol extends GenericProtocol {
 		registerRequestHandler(RetrieveRequest.REQUEST_ID, this::uponRetrieveRequest);
 		registerRequestHandler(StoreLocalRequest.REQUEST_ID, this::uponStoreLocalRequest);
 		registerRequestHandler(LookupLocalRequest.REQUEST_ID, this::uponLookupLocalRequest);
+		registerRequestHandler(LookupBulkLocalRequest.REQUEST_ID, this::uponLookupBulkLocalRequest);
+		registerRequestHandler(StoreBulkLocalRequest.REQUEST_ID, this::uponStoreBulkLocalRequest);
+		registerRequestHandler(RemoveBulkRequest.REQUEST_ID, this::uponRemoveBulkRequest);
 
 		 /*--------------------- Register Notification Handlers ----------------------------- */
         subscribeNotification(ChannelCreated.NOTIFICATION_ID, this::uponChannelCreated);
@@ -92,6 +89,8 @@ public class StorageProtocol extends GenericProtocol {
 	private void uponStoreLocalRequest(StoreLocalRequest request, short sourceProto) {
 		//System.out.println("Upon store local request");
 		contentsMap.put(request.getName(), request.getContent());
+		BigInteger id = HashGenerator.generateHash(request.getName());
+		idToName.put(id, request.getName());
 	}
 
 	private void uponLookupLocalRequest(LookupLocalRequest request, short sourceProto){
@@ -101,6 +100,43 @@ public class StorageProtocol extends GenericProtocol {
 			sendReply(new LookupLocalReply(request.getName(), request.getHost(),content), sourceProto);
 		else
 			sendReply(new LookupLocalReply(request.getName(), request.getHost(),new byte[0]), sourceProto);
+	}
+
+	private void uponLookupBulkLocalRequest(LookupBulkLocalRequest request, short sourceProto){
+		Set<String> names = new HashSet<>();
+		Set<byte[]> contents = new HashSet<>();
+		for(BigInteger id : request.getFiles()){
+			String name = idToName.get(id);
+			if(id != null){
+				names.add(name);
+				contents.add(contentsMap.get(name));
+			}
+		}
+		sendReply(new LookupBulkLocalReply(request.getHost(), names, contents), sourceProto);
+	}
+	private void uponStoreBulkLocalRequest(StoreBulkLocalRequest request, short sourceProto){
+		Iterator<String> names = request.getNames().iterator();
+		Iterator<byte[]> contents = request.getContents().iterator();
+
+		while(names.hasNext() && contents.hasNext()) {
+			String name = names.next();
+			byte[] content = contents.next();
+			contentsMap.put(name, content);
+			BigInteger id = HashGenerator.generateHash(name);
+			idToName.put(id, name);
+		}
+
+		sendReply(new StoreBulkLocalReply(request.getHost(), request.getNames()), sourceProto);
+	}
+
+	private void  uponRemoveBulkRequest(RemoveBulkRequest request, short sourceProto){
+		for(BigInteger id: request.getIds()){
+			String name = idToName.get(id);
+			if(name!=null){
+				contentsMap.remove(name);
+				idToName.remove(id);
+			}
+		}
 	}
 	
 	private void uponRetrieveRequest(RetrieveRequest request, short sourceProto) {
