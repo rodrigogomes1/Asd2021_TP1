@@ -100,6 +100,7 @@ public class ChordProtocol2 extends GenericProtocol {
         registerMessageSerializer(channelId, LookupResponseMsg.MSG_ID, LookupResponseMsg.serializer);
         registerMessageSerializer(channelId, StoreBulkMsg.MSG_ID, StoreBulkMsg.serializer);
         registerMessageSerializer(channelId, ConfirmBulkStoreMsg.MSG_ID, ConfirmBulkStoreMsg.serializer);
+        registerMessageSerializer(channelId, AskForContentMsg.MSG_ID, AskForContentMsg.serializer);
 
         /*---------------------- Register Message Handlers ---------------------- */
         registerMessageHandler(channelId, FindSucMsg.MSG_ID, this::uponFindSucMsg);
@@ -112,6 +113,7 @@ public class ChordProtocol2 extends GenericProtocol {
         registerMessageHandler(channelId, LookupResponseMsg.MSG_ID, this::uponLookupResponseMsg);
         registerMessageHandler(channelId, StoreBulkMsg.MSG_ID, this::uponStoreBulkMsg);
         registerMessageHandler(channelId, ConfirmBulkStoreMsg.MSG_ID, this::uponConfirmBulkStoreMsg);
+        registerMessageHandler(channelId, AskForContentMsg.MSG_ID, this::uponAskForContentMsg);
 
         /*-------------------- Register Channel Events ------------------------------- */
         registerChannelEventHandler(channelId, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
@@ -169,19 +171,36 @@ public class ChordProtocol2 extends GenericProtocol {
         if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
             sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
-            Set<BigInteger> files = new HashSet<>();
-            for(BigInteger fileId: filesLocal)
-                if(fileId.compareTo(targetId)<1 || fileId.compareTo(selfId)>1)
-                    files.add(fileId);
-            if(!files.isEmpty()) {
-                System.out.println("Bulk lookup request");
-                sendRequest(new LookupBulkLocalRequest(msg.getHost(), files), storageProtoId);
-            }
-        }else {
-            Host destintyHost = findTargetInFingers(targetId);
+       }else {
+            Host destintyHost = findNodeFile(targetId);
             sendMessage(this.channelId, msg,destintyHost);
         }
     }
+    
+    private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
+        //System.out.println("Receive sucMsgResponse"+(msg.getTargetId()==selfId));
+        if(selfId.compareTo(msg.getTargetId())==0) {
+            sucId = msg.getHashId();
+            sucHost = msg.getHost();
+            
+            sendMessage(this.channelId, new AskForContentMsg(selfId),sucHost);
+            
+        }else {
+            fingerTable.put(msg.getTargetId(), msg.getHost());
+        }
+    }
+    
+    
+   private void uponAskForContentMsg(AskForContentMsg msg, Host from, short sourceProto, int channelId) {
+	   Set<BigInteger> files = new HashSet<>();
+       for(BigInteger fileId: filesLocal)
+           if(fileId.compareTo(msg.getHashId())<1 || fileId.compareTo(selfId)>1)
+               files.add(fileId);
+       if(!files.isEmpty()) {
+           System.out.println("Bulk lookup request");
+           sendRequest(new LookupBulkLocalRequest(from, files), storageProtoId);
+       }
+   }
 
     private void uponLookupBulkLocalReply(LookupBulkLocalReply reply, short sourceProto){
         System.out.println("Bulk lookup reply");
@@ -211,17 +230,7 @@ public class ChordProtocol2 extends GenericProtocol {
         sendRequest(new RemoveBulkRequest(msg.getFileIds()), storageProtoId);
     }
 
-    private void uponFindSucMsgResponse(FindSucMsgResponse msg, Host from, short sourceProto, int channelId){
-        //System.out.println("Receive sucMsgResponse"+(msg.getTargetId()==selfId));
-        if(selfId.compareTo(msg.getTargetId())==0) {
-            sucId = msg.getHashId();
-            sucHost = msg.getHost();
-            //TODO - Save content
-        }else {
-            fingerTable.put(msg.getTargetId(), msg.getHost());
-        }
-    }
-
+    
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
         //System.out.println("Stabilize timer: " + (sucHost==null));
         openConnection(sucHost, this.channelId);
@@ -249,25 +258,7 @@ public class ChordProtocol2 extends GenericProtocol {
             sucHost = msg.getHost();
         }
     }
-    
-    
-    private Host findTargetInFingers(BigInteger targetId) {
-        BigInteger max = null;
-        for(BigInteger tableEntry : fingerTable.keySet()) {
-
-            if(tableEntry.compareTo(targetId) <= 0) {
-                max=tableEntry;
-            }else {
-                //break;
-            }
-        }
-        if(max==null) {
-            return sucHost;
-        }else {
-            return fingerTable.get(max);
-        }
-
-    }
+   
     
     
     private void uponFixFingersTimer(FixFingersTimer timer, long timerId) {
@@ -282,7 +273,7 @@ public class ChordProtocol2 extends GenericProtocol {
         BigInteger index = BigDecimal.valueOf( Math.pow(2, next-1 ) ).toBigInteger();
         BigInteger targetKey= selfId.add(index);
 
-        Host contactHost=findTargetInFingers(targetKey);
+        Host contactHost=findNodeFile(targetKey);
 
         if(contactHost.equals(sucHost)) {
             fingerTable.put(targetKey, sucHost);
@@ -402,7 +393,7 @@ public class ChordProtocol2 extends GenericProtocol {
         BigInteger maxId = BigInteger.ZERO;
 
         for(var finger : fingerTable.entrySet()){
-            if(between(maxId, id, finger.getKey())){
+            if(between(maxId,finger.getKey(), id)){
                 maxId = finger.getKey();
                 host = finger.getValue();
             }
