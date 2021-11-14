@@ -67,6 +67,10 @@ public class AutomatedApplication extends GenericProtocol {
 	private long retrieveRequests = 0;
 	private long retrieveRequestsSuccessful = 0;
 	private long retrieveRequestsFailed = 0;
+	private long timeStore = 0;
+	private long timeRequest = 0;
+	private long lastStore = 0;
+	private long lastRequest = 0;
 	
 	public AutomatedApplication(Host self, Properties properties, short storageProtoId) throws HandlerRegistrationException {
 		super(PROTO_NAME, PROTO_ID);
@@ -141,6 +145,7 @@ public class AutomatedApplication extends GenericProtocol {
 		StoreRequest request = new StoreRequest(this.myKeys.get(this.storedKeys), content);
 		sendRequest(request, storageProtoId);
 		//logger.info("{}: Storing content with name: {} with size {} bytes (requestID {})", self, request.getName(), content.length, request.getRequestUID());
+		lastStore=System.currentTimeMillis();
 		this.storeRequests++;
 	}
 
@@ -151,12 +156,14 @@ public class AutomatedApplication extends GenericProtocol {
 		//logger.info("{}: Sending Retrieve request for content with key: {} (request ID {})", self, request.getName(), request.getRequestUID());
 		//And send it to the storage protocol
 		sendRequest(request, storageProtoId);
+		lastRequest=System.currentTimeMillis();
 		this.retrieveRequests++;
 	}
 
 	private void uponStoreOk(StoreOKReply reply, short sourceProto) {
 		this.storedKeys++;
 		this.storeRequestsCompleted++;
+		timeStore += System.currentTimeMillis() - lastStore;
 		//logger.info("{}: Store Successful for content with name: {} (replyID {})", self, reply.getName(), reply.getReplyUID());
 		if(this.storedKeys >= this.numberContents) {
 			//Start requests periodically
@@ -176,11 +183,13 @@ public class AutomatedApplication extends GenericProtocol {
 	private void uponRetrieveOK(RetrieveOKReply reply, short sourceProto) {
 		//logger.info("{}: Retieve successful for content with name: {} with size {} bytes (replyID {})", self, reply.getName(), reply.getContent().length, reply.getReplyUID());
 		this.retrieveRequestsSuccessful++;
+		timeRequest += System.currentTimeMillis() - lastRequest;
 	}
 	
 	private void uponRetrieveFailed(RetrieveFailedReply reply, short sourceProto) {
 		//logger.info("{}: Retieve failed for content with name: {} bytes (replyID {})", self, reply.getName(), reply.getReplyUID());
 		this.retrieveRequestsFailed++;
+		timeRequest += System.currentTimeMillis() - lastRequest;
 	}
 
 	private void uponStopTimer(StopTimer stopTimer, long timerId) {
@@ -195,6 +204,8 @@ public class AutomatedApplication extends GenericProtocol {
 		logger.info("{}: Executed {} retrieve requests.", self, this.retrieveRequests);
 		logger.info("{}: Success on {} retrieve requests.", self, this.retrieveRequestsSuccessful);
 		logger.info("{}: Failed on {} retrieve requests.", self, this.retrieveRequestsFailed);
+		logger.info("{}: Store Latency = {} ms.", self, timeStore/storeRequestsCompleted);
+		logger.info("{}: Request Latency = {} ms.", self, timeRequest/(retrieveRequestsSuccessful+retrieveRequestsSuccessful));
 		System.exit(0);
 	}
 	
