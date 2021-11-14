@@ -148,6 +148,7 @@ public class ChordProtocol2 extends GenericProtocol {
             System.out.println("Join chord ring: "+contact);
             System.out.println("This host: "+selfHost);
             openConnection(contactHost, channelId);
+            //System.out.println("Send msg findSucMsg");
             sendMessage(channelId, new FindSucMsg(selfHost, selfId, selfId), contactHost);
 
         }else{ //Create new chord ring
@@ -169,10 +170,13 @@ public class ChordProtocol2 extends GenericProtocol {
 
         if(sucId.compareTo(selfId)==0 || between(selfId, targetId, sucId)) {
             openConnection(msg.getHost(), this.channelId);
+            //System.out.println("Send msg findSucMsgResponse");
             sendMessage(this.channelId, new FindSucMsgResponse(sucHost, sucId,targetId), msg.getHost());
        }else {
-            Host destintyHost = findNodeFile(targetId);
-            sendMessage(this.channelId, msg,destintyHost);
+            Host destinyHost = findNodeFile(targetId);
+            //System.out.println("Resend Find: "+ms.ge);
+            //System.out.println("Resend " + selfHost.getPort()+" -> "+destinyHost.getPort());
+            sendMessage(this.channelId, msg,destinyHost);
         }
     }
     
@@ -181,7 +185,7 @@ public class ChordProtocol2 extends GenericProtocol {
         if(selfId.compareTo(msg.getTargetId())==0) {
             sucId = msg.getHashId();
             sucHost = msg.getHost();
-            
+            //System.out.println("Send msg askforcontent");
             sendMessage(this.channelId, new AskForContentMsg(selfId),sucHost);
             
         }else {
@@ -196,29 +200,30 @@ public class ChordProtocol2 extends GenericProtocol {
            if(fileId.compareTo(msg.getHashId())<1 || fileId.compareTo(selfId)>1)
                files.add(fileId);
        if(!files.isEmpty()) {
-           System.out.println("Bulk lookup request");
+           //System.out.println("Bulk lookup request");
            sendRequest(new LookupBulkLocalRequest(from, files), storageProtoId);
        }
    }
 
     private void uponLookupBulkLocalReply(LookupBulkLocalReply reply, short sourceProto){
-        System.out.println("Bulk lookup reply");
+        //System.out.println("Bulk lookup reply");
         sendMessage(this.channelId, new StoreBulkMsg(reply.getNames(), reply.getContents()), reply.getHost());
     }
 
     private void uponStoreBulkMsg(StoreBulkMsg msg, Host from, short sourceProto, int channelId) {
-        System.out.println("Bulk store msg");
+        //System.out.println("Bulk store msg");
         sendRequest(new StoreBulkLocalRequest(from, msg.getNames(), msg.getContents()), storageProtoId);
     }
 
     private void uponStoreBulkLocalReply(StoreBulkLocalReply reply, short sourceProto){
-        System.out.println("Bulk store reply");
+        //System.out.println("Bulk store reply");
         Set<BigInteger> ids = new HashSet<>(reply.getNames().size());
         for(String name : reply.getNames()) {
             BigInteger id = HashGenerator.generateHash(name);
             ids.add(id);
             filesLocal.add(id);
         }
+        //System.out.println("Send msg confirmbulkstore");
         sendMessage(this.channelId, new ConfirmBulkStoreMsg(ids), reply.getHost());
     }
 
@@ -231,8 +236,11 @@ public class ChordProtocol2 extends GenericProtocol {
 
     
     private void uponStabilizeTimer(StabilizeTimer timer, long timerId) {
-        openConnection(sucHost, this.channelId);
-        sendMessage(this.channelId, new StabilizeMsg(selfHost, selfId), sucHost);
+        if(sucHost != null) {
+            openConnection(sucHost, this.channelId);
+            //System.out.println("Send msg stabilizemsg");
+            sendMessage(this.channelId, new StabilizeMsg(selfHost, selfId), sucHost);
+        }
     }
 
     private void uponStabilizeMsg(StabilizeMsg msg, Host from, short sourceProto, int channelId){
@@ -243,9 +251,8 @@ public class ChordProtocol2 extends GenericProtocol {
         if(preId == null || between(preId, msg.getHashId(), selfId)){ //if bigger than my pre, new pre
             preId = msg.getHashId();
             preHost = msg.getHost();
-            //TODO - Delete content
         }
-
+        //System.out.println("Send msg stabilizeResponse");
         sendMessage(this.channelId, new StabilizeMsgResponse(preHost, preId), from);
     }
     
@@ -272,13 +279,14 @@ public class ChordProtocol2 extends GenericProtocol {
         BigInteger targetKey= selfId.add(index);
 
         Host contactHost=findNodeFile(targetKey);
-
-        if(contactHost.equals(sucHost)) {
-            fingerTable.put(targetKey, sucHost);
-        }else {
-            openConnection(contactHost, channelId);
-            sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
-        }
+        if(contactHost != null)
+            if(contactHost.equals(sucHost)) {
+                fingerTable.put(targetKey, sucHost);
+            }else {
+                openConnection(contactHost, channelId);
+                //System.out.println("Send FindSucMsg from finger");
+                sendMessage(channelId, new FindSucMsg(selfHost, selfId, targetKey), contactHost);
+            }
 
     }
 
@@ -290,8 +298,10 @@ public class ChordProtocol2 extends GenericProtocol {
             sendRequest(new StoreLocalRequest(request.getName(), request.getContent()), storageProtoId);
             sendReply(new StoreOKReply(request.getName(), request.getRequestUID()), storageProtoId);
             filesLocal.add(fileId);
+            System.out.println("Store "+fileId+" in "+selfHost.getPort());
         } else if (sucHost != null){
             Host targetHost = findNodeFile(fileId);
+            //System.out.println("Send msg storeMsg");
             sendMessage(this.channelId,
                     new StoreMsg(selfHost, fileId, request.getName(), request.getContent(), request.getRequestUID()), targetHost);
         }
@@ -300,12 +310,14 @@ public class ChordProtocol2 extends GenericProtocol {
     private void uponStoreMsg(StoreMsg msg, Host from, short sourceProto, int channelId){
         if(between(preId, msg.getFileId(), selfId)) {
             sendRequest(new StoreLocalRequest(msg.getName(), msg.getContent()), storageProtoId);
+            //System.out.println("Send msg storeSuccess");
             sendMessage(this.channelId, new StoreSuccessMsg(msg.getName(), msg.getUid()), msg.getHost());
             filesLocal.add(msg.getFileId());
             //System.out.println("Store here: "+msg.getName());
         }
         else if(sucHost != null) {
             Host targetHost = findNodeFile(msg.getFileId());
+            //System.out.println("Send msg resend storeMsg");
             sendMessage(this.channelId, msg, targetHost);
         }
     }
@@ -327,6 +339,7 @@ public class ChordProtocol2 extends GenericProtocol {
             System.out.println(id);
 
         Host targetHost = findNodeFile(request.getID());
+        //System.out.println("Send msg lookupMsg");
         sendMessage(this.channelId, new LookupMsg(selfHost, request.getID(), request.getName(), request.getRequestUID()), targetHost);
     }
 
@@ -340,18 +353,24 @@ public class ChordProtocol2 extends GenericProtocol {
                 //System.out.println("Lookup msg resend");
                 //System.out.println("Not found");
                 //System.out.println(msg.getName());
+                //System.out.println("Send msg lookResponse failed");
                 sendMessage(this.channelId, new LookupResponseMsg(msg.getName(), msg.getUid(), new byte[0]), msg.getHost());
             }
         }
-        else if(sucHost != null) {
+        else{
             //System.out.println(sucHost);
             Host targetHost = findNodeFile(msg.getFileId());
-            sendMessage(this.channelId, msg, targetHost);
+            if(targetHost.compareTo(selfHost) != 0) {
+                System.out.println("Resend Find: " + msg.getFileId());
+                System.out.println("Resend " + selfHost.getPort() + " -> " + targetHost.getPort());
+                sendMessage(this.channelId, msg, targetHost);
+            }
         }
     }
 
     private void uponLookupLocalReply(LookupLocalReply reply, short sourceProto){
         //System.out.println("Storage answer, send to host");
+        //System.out.println("Send msg lookupResponse ok");
         sendMessage(this.channelId, new LookupResponseMsg(reply.getName(), reply.getRequestUID(), reply.getContent()), reply.getHost());
     }
 
@@ -387,8 +406,8 @@ public class ChordProtocol2 extends GenericProtocol {
     }
 
     private Host findNodeFile(BigInteger id){
-        Host host = null;
-        BigInteger maxId = BigInteger.ZERO;
+        Host host = sucHost;
+        BigInteger maxId = sucId;
 
         for(var finger : fingerTable.entrySet()){
             if(between(maxId,finger.getKey(), id)){
@@ -396,9 +415,6 @@ public class ChordProtocol2 extends GenericProtocol {
                 host = finger.getValue();
             }
         }
-
-        if(host == null)
-            host = sucHost;
 
         return host;
     }
